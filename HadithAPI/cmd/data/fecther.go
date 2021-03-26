@@ -1,13 +1,15 @@
 package data
 
 import (
+	"HadithAPI/cmd/scheduler"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
-	"unsafe"
+	"time"
 )
 
 //RawHadith struct to store a hadith extracted from json file
@@ -32,10 +34,14 @@ func Fetch() (Hadiths, error) {
 	filename := pw + "/data/hadiths.json"
 	hadBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Fatalf("Cannot read json file. %s", err)
+		log.Printf("Cannot read json file. %+v", err)
 		return nil, err
 	}
-	json.Unmarshal(hadBytes, &hadithList)
+	err = json.Unmarshal(hadBytes, &hadithList)
+	if err != nil {
+		log.Printf("Cannot read json file. %+v", err)
+		return nil, err
+	}
 	return hadithList, nil
 }
 
@@ -61,17 +67,27 @@ func (raw *CleanHadith) ToJSON(w io.Writer) error {
 	return e.Encode(raw)
 }
 
+var defaultTime = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+
 //Gen method returns a channel containing clean hadiths to be scheduled by the scheduler
 func (hl *Hadiths) Gen() <-chan CleanHadith {
-	var s CleanHadith
-	out := make(chan CleanHadith, 50*unsafe.Sizeof(s))
-	go func() chan CleanHadith {
-		for _, had := range *hl {
-			clhad := parseHadith(had)
-			out <- *clhad
+	fmt.Println(len(*hl))
+	out := make(chan CleanHadith, 0)
+	fmt.Println("Entering Scheduling...")
+	t, ok := scheduler.ScheduleHadith()
+	if ok {
+		if defaultTime.Before(*t) {
+			for _, had := range *hl {
+				go func(h *RawHadith) chan CleanHadith {
+					clhad := parseHadith(h)
+					out <- *clhad
+					defaultTime = *t
+					return out
+				}(had)
+			}
 		}
-		close(out)
-		return out
-	}()
+	}
+	fmt.Println("Scheduling...")
+
 	return out
 }

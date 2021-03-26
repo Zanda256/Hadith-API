@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	l := log.New(os.Stdout, "products-api", log.LstdFlags)
+	l := log.New(os.Stdout, "Hadith-API", log.LstdFlags)
 	hh := handlers.NewHadiths(l)
 
 	sm := http.NewServeMux()

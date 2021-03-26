@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"HadithAPI/cmd/data"
-	"HadithAPI/cmd/scheduler"
+	"fmt"
 	"log"
 	"net/http"
 )
@@ -26,9 +26,12 @@ func (h *Hadiths) getHadiths() (*data.Hadiths, error) {
 	return &hl, nil
 }
 func (h *Hadiths) generate() <-chan data.CleanHadith {
-	hl, _ := h.getHadiths()
-	ch := hl.Gen()
-	hodch := scheduler.ScheduleHadith(ch)
+	hl, err := h.getHadiths()
+	if err != nil {
+		fmt.Println(err)
+	}
+	hodch := hl.Gen()
+	fmt.Println(<-hodch)
 	return hodch
 }
 
@@ -37,7 +40,11 @@ func (h *Hadiths) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("content-type", "application-json")
 		newch := h.generate()
 		new := <-newch
-		new.ToJSON(rw)
+		fmt.Println("Entering JSON encoder")
+		err := new.ToJSON(rw)
+		if err != nil {
+			http.Error(rw, "ToJSON in handler failed", http.StatusInternalServerError)
+		}
 		return
 	}
 	rw.WriteHeader(http.StatusMethodNotAllowed)
